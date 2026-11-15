@@ -68,7 +68,7 @@ src/
 2. **テスト先行（Red）:** 実装コードを書く前に、`domain` 層のビジネスルールおよび `application` 層のユースケースに対する Vitest テスト（`*.test.ts`）を作成し、失敗することを確認する。
 3. **最小限の実装（Green）:** テストを通すための実装を行う。
 4. **品質チェック:** 完了報告の前に必ず以下を実行し、すべてエラーゼロであることを確認する。
-   * `npx tsc --noEmit`（型エラーがないこと）
+   * `npx next typegen && npx tsc --noEmit`（型エラーがないこと）
    * `npm run arch:check`（DDDの層違反・依存関係エラーがないこと）
    * `npx vitest run`（全テストがパスすること）
    * `npm run lint`（Lintエラーがないこと）
