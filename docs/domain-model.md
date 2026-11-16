@@ -546,8 +546,8 @@ sequenceDiagram
 | --- | --- | --- |
 | 1 | `EmployeeId.create(input.employeeId)` | VO |
 | 2 | `today = BusinessDate.fromInstant(clock.now())` | IClock / VO |
-| 3 | `from = input.from ? BusinessDate.create(input.from) : 当月 1 日`、`to = input.to ? BusinessDate.create(input.to) : today` | VO（形式不正 → `InvalidBusinessDateError`） |
-| 4 | `from > to`、または期間が 93 日を超える場合は `ValidationError` | ユースケース（入力条件） |
+| 3 | `to = input.to === undefined ? today : BusinessDate.create(input.to)`、`from = input.from === undefined ? to と同じ月の 1 日 : BusinessDate.create(input.from)` | VO（形式不正 → `InvalidBusinessDateError`。空文字も不正。空クエリを省略とみなすのは API 側の責務） |
+| 4 | `from > to`、または `from.daysUntil(to) > 93`（`MAX_PERIOD_DAYS`）の場合は `ValidationError` | ユースケース（入力条件） |
 | 5 | `attendances = repository.findByEmployeeAndPeriod(employeeId, from, to)` | リポジトリ |
 | 6 | 各勤怠を DTO に変換し、退勤済の `workMinutes` / `overtimeMinutes` を合計 | Mapper |
 | 7 | `AttendanceListDto` を返す | — |
@@ -574,9 +574,12 @@ F-03 のための読み取り専用ユースケース。`today = BusinessDate.fr
 
 | 当日の勤怠 | `status` | `attendance` |
 | --- | --- | --- |
-| 0 件 | `NOT_STARTED` | `null` |
+| 0 件・かつ前日以前から出勤中の勤怠あり（日付またぎ） | `WORKING` | `findLatestWorkingByEmployee` の勤怠 |
+| 0 件・出勤中の勤怠もなし | `NOT_STARTED` | `null` |
 | 最新が出勤中 | `WORKING` | 最新の勤怠 |
 | 最新が退勤済 | `FINISHED` | 最新の勤怠 |
+
+> 日付またぎの行は、22:00 出勤 → 翌 02:00 に画面を開くと「未出勤」になり退勤できない問題を避けるためのもの。退勤 API の対象（`findLatestWorkingByEmployee`）と同じ基準にそろえている。
 
 ---
 
@@ -595,7 +598,9 @@ F-03 のための読み取り専用ユースケース。`today = BusinessDate.fr
 | application | `src/application/ports/IClock.ts` | 時計ポート |
 | infrastructure | `src/infrastructure/repositories/InMemoryAttendanceRepository.ts` | リポジトリ実装（MVP） |
 | infrastructure | `src/infrastructure/clock/SystemClock.ts` | 時計実装 |
-| app | `src/app/api/attendances/**/route.ts` | API Route（DI・ヘッダ解決・例外 → HTTP 変換） |
+| app | `src/app/api/attendances/**/route.ts` | API Route（`attendanceHandlers` の該当ハンドラを HTTP メソッド名で export するだけ） |
+| app | `src/app/api/attendances/_lib/createAttendanceHandlers.ts` | ハンドラ本体（ヘッダ・ボディ・クエリの解釈、ユースケース呼び出し、例外 → HTTP 変換）。依存を引数で受けるためテスト可能 |
+| app | `src/app/api/attendances/_lib/attendanceContainer.ts` | DI コンテナ。`InMemoryAttendanceRepository` を `globalThis` に 1 つだけ保持し、全ルートで共有する |
 | presentation | `src/presentation/components/*.tsx` | 打刻エリア・勤怠一覧テーブル |
 
 テストは対象ファイルと同じディレクトリに `*.test.ts` として配置する。
@@ -610,8 +615,9 @@ F-03 のための読み取り専用ユースケース。`today = BusinessDate.fr
 | `Attendance` | 単体 | 状態遷移、BR-01・BR-04 の異常系、AC-03 の計算表、`reconstruct` の不変条件検証 | なし |
 | `AttendanceDuplicationChecker` | 単体 | リポジトリの結果に対する判定（AC-02-1/2） | テスト内スタブ（domain のテストは infrastructure を import できないため） |
 | `InMemoryAttendanceRepository` | 単体 + 結合 | 各検索メソッドの絞り込み・並び順、ドメインサービスとの結合（AC-02-1〜4） | 実物 |
-| ユースケース | 単体（結合寄り） | 正常系・異常系の入出力、DTO の内容 | `InMemoryAttendanceRepository` + `FixedClock` |
-| API Route | 結合（後続フェーズ） | HTTP ステータスとエラーコードの変換、ヘッダ既定値（BR-05） | — |
+| ユースケース | 単体（結合寄り） | 正常系・異常系の入出力、DTO の内容、エラー時に保存内容が変わらないこと | `src/test-utils/FakeAttendanceRepository` + `FixedClock`（application のテストも infrastructure を import できないため、domain のみに依存するフェイクを使う） |
+| API ハンドラ（`createAttendanceHandlers`） | 結合 | HTTP ステータスとエラーコードの変換、レスポンス形式、ヘッダ既定値（BR-05）、ボディ・クエリの解釈、内部エラーを漏らさないこと | 実物の `InMemoryAttendanceRepository` + `FixedClock` |
+| `route.ts` | 配線 | 各ルートが本番用の依存で組み立てられ、リポジトリを共有していること | 本番用の依存（`SystemClock`） |
 
 要件定義書の受け入れ条件 ID（`AC-xx-x`）をテスト名に含め、要件とテストの対応を追跡できるようにする。
 
