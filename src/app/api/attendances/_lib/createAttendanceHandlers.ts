@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation';
 import type { ClockOutInput } from '../../../../application/dto/AttendanceDto';
 import type { IClock } from '../../../../application/ports/IClock';
 import { ClockInUseCase } from '../../../../application/usecases/ClockInUseCase';
@@ -66,6 +67,8 @@ const withErrorHandling =
     try {
       return await handler(request);
     } catch (error) {
+      // Next.js の制御用例外（プリレンダリング中断など）は握りつぶさず Next.js に委ねる
+      unstable_rethrow(error);
       return toErrorResponse(error);
     }
   };

@@ -426,5 +426,22 @@ describe('勤怠 API（/api/attendances）', () => {
 
       await expectError(await api.clockOut(post('/clock-out', { employeeId: 'emp-001' })), 500, 'INTERNAL_ERROR');
     });
+
+    it('Next.js 内部の制御用例外（プリレンダリング中断など）は 500 に変換せず再送出する', async () => {
+      const consoleError = silenceConsoleError();
+      // cacheComponents 有効時、ビルド時のプリレンダリングで request.headers に触れると投げられる例外
+      const prerenderInterrupted = Object.assign(new Error('needs to bail out of prerendering'), {
+        digest: 'NEXT_PRERENDER_INTERRUPTED',
+      });
+      class PrerenderingRepository extends InMemoryAttendanceRepository {
+        override async findByEmployeeAndPeriod(): Promise<Attendance[]> {
+          throw prerenderInterrupted;
+        }
+      }
+      api = createAttendanceHandlers({ attendanceRepository: new PrerenderingRepository(), clock });
+
+      await expect(api.getList(get('', { employeeId: 'emp-001' }))).rejects.toBe(prerenderInterrupted);
+      expect(consoleError).not.toHaveBeenCalled();
+    });
   });
 });
