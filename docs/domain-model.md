@@ -307,11 +307,14 @@ classDiagram
     DomainError <|-- InvalidClockOutTimeError : INVALID_CLOCK_OUT_TIME
     DomainError <|-- InvalidBreakDurationError : INVALID_BREAK_DURATION
     DomainError <|-- AttendanceAlreadyFinishedError : ATTENDANCE_ALREADY_FINISHED
+    DomainError <|-- InvalidAttendanceStateError : INVALID_ATTENDANCE_STATE
     DomainError <|-- ValidationError : VALIDATION_ERROR
     ValidationError <|-- InvalidEmployeeIdError
     ValidationError <|-- InvalidBusinessDateError
     ValidationError <|-- InvalidClockTimeError
 ```
+
+> `InvalidAttendanceStateError` は `Attendance.reconstruct()` が不変条件 1・4 の違反（永続化データの破損）を検出したときに投げる。利用者の操作では発生しないため、API では `500 INTERNAL_ERROR` として扱う。
 
 ---
 
@@ -585,7 +588,8 @@ F-03 のための読み取り専用ユースケース。`today = BusinessDate.fr
 | domain | `src/domain/models/attendance/AttendanceId.ts` ほか | 値オブジェクト（`EmployeeId`, `BusinessDate`, `ClockInTime`, `ClockOutTime`, `BreakDuration`, `WorkDuration`, `OvertimeDuration`, `AttendanceStatus`） |
 | domain | `src/domain/services/AttendanceDuplicationChecker.ts` | ドメインサービス |
 | domain | `src/domain/repositories/IAttendanceRepository.ts` | リポジトリ IF |
-| domain | `src/domain/errors/*.ts` | `DomainError` と派生例外 |
+| domain | `src/domain/models/attendance/StandardWorkTime.ts` | 所定労働時間の定数（`WorkDuration` ⇄ `OvertimeDuration` の循環参照を避けるため分離） |
+| domain | `src/domain/errors/*.ts` | `DomainError` と派生例外（`index.ts` から一括 import） |
 | application | `src/application/usecases/*UseCase.ts` | ユースケース 4 種 |
 | application | `src/application/dto/*.ts` | 入出力 DTO・`AttendanceDtoMapper` |
 | application | `src/application/ports/IClock.ts` | 時計ポート |
@@ -604,7 +608,8 @@ F-03 のための読み取り専用ユースケース。`today = BusinessDate.fr
 | --- | --- | --- | --- |
 | 値オブジェクト | 単体 | 生成条件の境界値（`BreakDuration(-1)` / `(0)`、存在しない日付、JST の日付境界 23:59/00:00） | なし |
 | `Attendance` | 単体 | 状態遷移、BR-01・BR-04 の異常系、AC-03 の計算表、`reconstruct` の不変条件検証 | なし |
-| `AttendanceDuplicationChecker` | 単体 | AC-02-1〜4 | `InMemoryAttendanceRepository` |
+| `AttendanceDuplicationChecker` | 単体 | リポジトリの結果に対する判定（AC-02-1/2） | テスト内スタブ（domain のテストは infrastructure を import できないため） |
+| `InMemoryAttendanceRepository` | 単体 + 結合 | 各検索メソッドの絞り込み・並び順、ドメインサービスとの結合（AC-02-1〜4） | 実物 |
 | ユースケース | 単体（結合寄り） | 正常系・異常系の入出力、DTO の内容 | `InMemoryAttendanceRepository` + `FixedClock` |
 | API Route | 結合（後続フェーズ） | HTTP ステータスとエラーコードの変換、ヘッダ既定値（BR-05） | — |
 

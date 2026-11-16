@@ -11,8 +11,9 @@ module.exports = {
     {
       name: "domain-no-external-packages",
       severity: "error",
-      comment: "domain層は純粋なTypeScriptのみで構成し、外部ライブラリに依存してはいけません。",
-      from: { path: "^src/domain" },
+      comment:
+        "domain層は純粋なTypeScriptのみで構成し、外部ライブラリに依存してはいけません。（テストファイルがテストランナーを import することのみ許可）",
+      from: { path: "^src/domain", pathNot: "\\.test\\.ts$" },
       to: { path: "^node_modules" },
     },
     {
