@@ -1,0 +1,40 @@
+name: Claude PR Auto Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          # パターンA（Pro/Maxプラン）の場合はこちらを使用:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # パターンB（APIキー）の場合は上の行を消し、下のコメントを外してください:
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          prompt: |
+            あなたはシニアソフトウェアエンジニアです。
+            リポジトリ直下の `CLAUDE.md` および `docs/` の設計書を必ず確認した上で、このPull Requestの変更差分をレビューし、日本語でPRにコメントを投稿してください。
+
+            【重点レビュー観点】
+            1. DDDレイヤードアーキテクチャの依存ルール違反がないか（domain層の純粋性、application層の依存先など）
+            2. ドメインロジックがUIコンポーネントやAPI Routeに漏れ出していないか
+            3. TypeScriptの型安全性（anyの使用や不適切な型アサーションがないか）
+            4. 境界値や異常系を含めたテストが適切に書かれているか
+
+            問題がない場合でも、良い点と軽微な改善提案があれば簡潔にフィードバックしてください。
