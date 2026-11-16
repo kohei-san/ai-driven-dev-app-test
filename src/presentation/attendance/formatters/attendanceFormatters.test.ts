@@ -94,6 +94,7 @@ describe('toAttendanceRowViewModel（勤怠一覧の 1 行）', () => {
       work: '10:30',
       overtime: '2:30',
       hasOvertime: true,
+      status: 'FINISHED',
       statusLabel: '退勤済',
     });
   });
@@ -110,6 +111,7 @@ describe('toAttendanceRowViewModel（勤怠一覧の 1 行）', () => {
       work: '-',
       overtime: '-',
       hasOvertime: false,
+      status: 'WORKING',
       statusLabel: '出勤中',
     });
   });
